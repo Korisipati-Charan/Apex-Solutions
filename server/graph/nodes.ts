@@ -2,6 +2,7 @@ import { Type } from "@google/genai";
 import { callLLM } from "../llm/router.ts";
 import { runWithConcurrencyLimit } from "../llm/concurrency.ts";
 import { segmentSyllabusText, retrieveRAGContext } from "./rag.ts";
+import { normalizePaper } from "../normalize/examPayload.ts";
 import type { GraphState } from "./types.ts";
 
 const QUESTION_CHUNK_SIZE = 10;
@@ -77,9 +78,17 @@ Extract:
     };
   }
 
+  const papers = (extractedSetup.papers || []).map((paper, index) => {
+    const record = paper as Record<string, unknown>;
+    return {
+      id: typeof record.id === "number" ? record.id : index + 1,
+      name: String(record.name || `Paper ${index + 1}: Technical Assessment`),
+    };
+  });
+
   return {
     skills: extractedSetup.skills || [],
-    papers: extractedSetup.papers || [],
+    papers,
   };
 }
 
@@ -274,42 +283,23 @@ Each question must have exactly 4 options (A–D), one correct letter, a detaile
 }
 
 export async function validateAndCorrectNode(state: GraphState) {
-  const finalPapers = state.papers.map((p) => {
-    const paperId = p.id as number;
+  const fallbackSkill = state.skills[0] || "Software Engineering";
+
+  const finalPapers = state.papers.map((p, paperIndex) => {
+    const paperId = (typeof p.id === "number" ? p.id : paperIndex + 1) as number;
     const rawQuestions = state.questionsGenerated[paperId] || [];
 
-    const indexedQuestions: Record<string, unknown>[] = rawQuestions
-      .slice(0, state.numQuestions)
-      .map((q, idx) => ({
-        ...q,
-        id: `q_${idx + 1}`,
-      }));
-
-    while (indexedQuestions.length < state.numQuestions) {
-      const qSeq = indexedQuestions.length + 1;
-      indexedQuestions.push({
-        id: `q_${qSeq}`,
-        text: `Advanced technical question evaluating ${state.skills[0] || "Systems Architecture"}. Identify the correct pattern.`,
-        options: [
-          "A. Decouple components using isolated properties, clear interfaces, and structured RAG layers.",
-          "B. Package code with hard dependencies and silent retry triggers.",
-          "C. Store credentials dynamically in raw browser settings files.",
-          "D. Bypass execution controls and run arbitrary shell strings in host scripts.",
-        ],
-        correctAnswer: "A",
-        explanation:
-          "Option A is correct. Decoupled concerns and standard RAG retrievers are fundamental best practices.",
-        skill: state.skills[0] || "Systems Architecture",
-        codeSnippet: "",
-      });
-    }
-
-    return {
-      id: paperId,
-      name: p.name,
-      questions: indexedQuestions,
-      durationMins: state.paperDurationMins,
-    };
+    return normalizePaper(
+      {
+        id: paperId,
+        name: String(p.name),
+        questions: rawQuestions,
+      },
+      paperIndex,
+      state.numQuestions,
+      state.paperDurationMins,
+      fallbackSkill
+    );
   });
 
   return { papers: finalPapers };

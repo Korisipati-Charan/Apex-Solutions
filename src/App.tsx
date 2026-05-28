@@ -5,10 +5,11 @@ import BreakActiveScreen from "./components/BreakActiveScreen";
 import EducatorAnalysisScreen from "./components/EducatorAnalysisScreen";
 import PreviousReportsPanel from "./components/PreviousReportsPanel";
 import SystemSettingsModal from "./components/SystemSettingsModal";
-import { ExamSetup, CandidateResponse, ExamState, EducatorAnalysis, HistoricalReport } from "./types";
+import { ExamSetup, CandidateResponse, ExamState, EducatorAnalysis, HistoricalReport, Paper } from "./types";
 import { ShieldCheck, HardDrive, HelpCircle, ArrowRight, Zap, RefreshCw, Layers, Compass, ExternalLink, History, Settings, Download, Home } from "lucide-react";
 import { playBeep } from "./utils/audio";
 import { downloadQuestionPaper } from "./utils/downloadPaper";
+import { buildInitialPaperResponses, paperAnswersMap } from "./utils/paperResponses";
 
 
 export default function App() {
@@ -408,41 +409,32 @@ export default function App() {
       }
 
       const parsedData = await response.json();
-      
-      // Structure the complete exam setup model
+
+      const normalizedPapers = (parsedData.papers || []).map((p: Paper, idx: number) => ({
+        id: p.id || idx + 1,
+        name: p.name || `Paper ${p.id || idx + 1}: Technical Assessment`,
+        questions: (p.questions || []).map((q, qIdx) => ({
+          ...q,
+          id: q.id || `q_${qIdx + 1}`,
+          correctAnswer: String(q.correctAnswer || "A").trim().charAt(0).toUpperCase(),
+        })),
+        durationMins: config.paperDurationMins,
+      }));
+
       const newExamSetup: ExamSetup = {
         id: `setup_${Date.now()}`,
         title: config.title,
         skills: parsedData.skills || [],
-        papers: parsedData.papers.map((p: any, idx: number) => ({
-          id: p.id || idx + 1,
-          name: p.name || `Paper ${p.id || idx + 1}: Technical Assessment`,
-          questions: p.questions || [],
-          durationMins: config.paperDurationMins
-        })),
+        papers: normalizedPapers,
         paperDurationMins: config.paperDurationMins,
         breakDurationMins: config.breakDurationMins,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
 
-      // Create responses placeholders
-      const initializedResponses = {
-        1: {
-          paperId: 1,
-          answers: {},
-          timeRemainingSecs: config.paperDurationMins * 60,
-          status: "ongoing" as const,
-          timeSpentSecs: 0,
-          startedAt: new Date().toISOString()
-        },
-        2: {
-          paperId: 2,
-          answers: {},
-          timeRemainingSecs: config.paperDurationMins * 60,
-          status: "not_started" as const,
-          timeSpentSecs: 0
-        }
-      };
+      const initializedResponses = buildInitialPaperResponses(
+        newExamSetup.papers,
+        config.paperDurationMins
+      );
 
       // Update state
       const initialStatus = "paper_1";
@@ -920,10 +912,7 @@ export default function App() {
             <EducatorAnalysisScreen
               analysis={examState.educatorAnalysis}
               setup={examState.examSetup}
-              answers={{
-                1: examState.paperResponses[1].answers,
-                2: examState.paperResponses[2].answers
-              }}
+              answers={paperAnswersMap(examState.paperResponses)}
               onRestart={handleRestartNewExam}
             />
           );
@@ -948,16 +937,14 @@ export default function App() {
                 <span>Metrics File</span>
                 <span>Output Log</span>
               </div>
-              <div className="flex justify-between">
-                <span>Paper 1 Responses:</span>
-                <span className="text-slate-800 font-semibold">{Object.keys(examState.paperResponses[1].answers).length} / {examState.examSetup.papers[0]?.questions.length || 0} Saved</span>
-              </div>
-              {examState.examSetup.papers.length > 1 && (
-                <div className="flex justify-between">
-                  <span>Paper 2 Responses:</span>
-                  <span className="text-slate-800 font-semibold">{Object.keys(examState.paperResponses[2].answers).length} / {examState.examSetup.papers[1]?.questions.length || 0} Saved</span>
+              {examState.examSetup.papers.map((paper) => (
+                <div key={paper.id} className="flex justify-between">
+                  <span>{paper.name} Responses:</span>
+                  <span className="text-slate-800 font-semibold">
+                    {Object.keys(examState.paperResponses[paper.id]?.answers || {}).length} / {paper.questions.length} Saved
+                  </span>
                 </div>
-              )}
+              ))}
               <div className="flex justify-between">
                 <span>Targeted Skills Tracked:</span>
                 <span className="text-indigo-600 font-semibold">{examState.examSetup.skills.length} extracted</span>

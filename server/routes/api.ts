@@ -1,15 +1,22 @@
 import type { Express } from "express";
 import { Type } from "@google/genai";
-import { callLLM } from "../llm/router.ts";
-import type { ApiConfig } from "../llm/router.ts";
+import type { ApiConfig, EducatorAnalysisResponse } from "../../shared/apiContract.ts";
 import { runExamGenerationGraph } from "../graph/examGraph.ts";
 import type { GraphState } from "../graph/types.ts";
+import { callLLM } from "../llm/router.ts";
+import { normalizeCandidateAnswer, normalizeLetterAnswer } from "../normalize/examPayload.ts";
+import { validateGenerateExamBody } from "../validate/request.ts";
 import { handleParseFile } from "./parseFile.ts";
 
 export function registerApiRoutes(app: Express): void {
   app.post("/api/test-connection", async (req, res) => {
     try {
       const { model, apiConfig } = req.body as { model: string; apiConfig?: ApiConfig };
+      if (!model) {
+        res.status(400).json({ ok: false, error: "Model selection is required." });
+        return;
+      }
+
       const info = await callLLM(
         model,
         "You are a quick API validation assistant. Confirm receipt of this message in raw JSON format.",
@@ -31,28 +38,14 @@ export function registerApiRoutes(app: Express): void {
 
   app.post("/api/generate-exam", async (req, res) => {
     try {
-      const {
-        documentText,
-        numPapers = 2,
-        numQuestions = 90,
-        paperDurationMins = 180,
-        model,
-        apiConfig,
-      } = req.body as {
-        documentText?: string;
-        numPapers?: number;
-        numQuestions?: number;
-        paperDurationMins?: number;
-        model: string;
-        apiConfig?: ApiConfig;
-      };
-
-      if (!documentText || documentText.trim().length === 0) {
-        res.status(400).json({
-          error: "Syllabus details or skill documents are required to generate the examination.",
-        });
+      const validated = validateGenerateExamBody(req.body);
+      if (validated.ok === false) {
+        res.status(400).json({ error: validated.error });
         return;
       }
+
+      const { documentText, numPapers, numQuestions, paperDurationMins, model, apiConfig } =
+        validated.value;
 
       const initialState: GraphState = {
         documentText,
@@ -99,9 +92,22 @@ export function registerApiRoutes(app: Express): void {
         examSetup: {
           title: string;
           skills: string[];
-          papers: { id: number; name: string; questions: Record<string, unknown>[] }[];
+          papers: {
+            id: number;
+            name: string;
+            questions: {
+              id: string;
+              skill: string;
+              text: string;
+              correctAnswer: string;
+              codeSnippet?: string;
+            }[];
+          }[];
         };
-        paperResponses: Record<string, { answers: Record<string, { selectedOption?: string }>; timeSpentSecs: number }>;
+        paperResponses: Record<
+          string,
+          { answers: Record<string, { selectedOption?: string | null }>; timeSpentSecs: number }
+        >;
         model: string;
         apiConfig?: ApiConfig;
       };
@@ -125,25 +131,20 @@ export function registerApiRoutes(app: Express): void {
           if (refPaper) {
             totalCount = refPaper.questions.length;
             for (const q of refPaper.questions) {
-              const qRecord = q as {
-                id: string;
-                skill: string;
-                text: string;
-                correctAnswer: string;
-                codeSnippet?: string;
-              };
-              const resp = paperRespState.answers[qRecord.id];
-              const candidateAnswer = resp ? resp.selectedOption : "No Answer";
-              const isCorrect = resp && resp.selectedOption === qRecord.correctAnswer;
+              const resp = paperRespState.answers[q.id];
+              const candidateLetter = normalizeCandidateAnswer(resp?.selectedOption);
+              const correctLetter = normalizeLetterAnswer(q.correctAnswer);
+              const candidateAnswer = candidateLetter ?? "No Answer";
+              const isCorrect = candidateLetter !== null && candidateLetter === correctLetter;
               if (isCorrect) correctCount++;
 
               details.push({
-                skill: qRecord.skill,
-                question: qRecord.text,
+                skill: q.skill,
+                question: q.text,
                 candidateAnswer,
-                correctAnswer: qRecord.correctAnswer,
+                correctAnswer: correctLetter,
                 isCorrect,
-                codeSnippet: qRecord.codeSnippet || "",
+                codeSnippet: q.codeSnippet || "",
               });
             }
           }
@@ -203,7 +204,14 @@ ${JSON.stringify(candidateData, null, 2)}
         required: ["summary", "strengths", "weakAreas", "skillScores"],
       };
 
-      const data = await callLLM(model, educatorSystemPrompt, instructions, educatorSchema, apiConfig);
+      const data = (await callLLM(
+        model,
+        educatorSystemPrompt,
+        instructions,
+        educatorSchema,
+        apiConfig
+      )) as EducatorAnalysisResponse;
+
       res.json(data);
     } catch (error: unknown) {
       const message =

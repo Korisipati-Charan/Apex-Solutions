@@ -22,17 +22,9 @@ interface SystemSettingsModalProps {
   onSelectModel: (model: string) => void;
 }
 
-export interface ApiConfig {
-  geminiApiKey: string;
-  openaiApiKey: string;
-  anthropicApiKey: string;
-  sarvamApiKey: string;
-  localLlmUrl: string;
-  localLlmModel: string;
-  otherLlmUrl: string;
-  otherLlmModel: string;
-  otherLlmApiKey: string;
-}
+import type { ApiConfig as SharedApiConfig } from "../../shared/apiContract";
+
+export interface ApiConfig extends Required<SharedApiConfig> {}
 
 export const SUPPORTED_MODELS = [
   {

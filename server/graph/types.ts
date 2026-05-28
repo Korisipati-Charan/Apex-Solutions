@@ -1,4 +1,4 @@
-import type { ApiConfig } from "../llm/router.ts";
+import type { ApiConfig } from "../../shared/apiContract.ts";
 
 export interface GraphState {
   documentText: string;
@@ -8,7 +8,7 @@ export interface GraphState {
   model: string;
   apiConfig: ApiConfig;
   skills: string[];
-  papers: Record<string, unknown>[];
+  papers: Array<{ id: number; name: string; questions?: unknown[]; durationMins?: number }>;
   segments: string[];
   developerProfiles: Record<string, string[]>;
   questionsGenerated: Record<number, Record<string, unknown>[]>;

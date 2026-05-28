@@ -14,17 +14,9 @@ import {
   resolveProvider,
 } from "./providers.ts";
 
-export interface ApiConfig {
-  geminiApiKey?: string;
-  openaiApiKey?: string;
-  anthropicApiKey?: string;
-  sarvamApiKey?: string;
-  localLlmUrl?: string;
-  localLlmModel?: string;
-  otherLlmUrl?: string;
-  otherLlmModel?: string;
-  otherLlmApiKey?: string;
-}
+import type { ApiConfig } from "../../shared/apiContract.ts";
+
+export type { ApiConfig };
 
 async function callLLMSingle(
   requestedModel: string,
