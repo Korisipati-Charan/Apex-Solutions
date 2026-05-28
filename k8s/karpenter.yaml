@@ -1,0 +1,28 @@
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: apex-backend-nodepool
+spec:
+  template:
+    spec:
+      requirements:
+        # Leverage heavily discounted Spot Instances (Optimization/Cloud Economics Principle)
+        - key: "karpenter.sh/capacity-type"
+          operator: In
+          values: ["spot"]
+        # Adopt high price-to-performance ARM architecture (Graveiton CPU nodes)
+        - key: "kubernetes.io/arch"
+          operator: In
+          values: ["arm64"]
+        # Select cost-effective modern compute node families
+        - key: "node.kubernetes.io/instance-type"
+          operator: In
+          values: ["t4g.small", "t4g.medium", "c6g.large"]
+      nodeClassRef:
+        name: default
+  limits:
+    cpu: "100"
+    memory: "400Gi"
+  disruption:
+    consolidationPolicy: WhenUnderutilized
+    expireAfter: 720h

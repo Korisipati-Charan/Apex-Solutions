@@ -1,0 +1,18 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+release/
+.github/workflows/build-mac.yml
+.github/workflows/build-win.yml
+
+# Exclude MD files to prevent accidental commits as requested (except README.md)
+Rules.MD
+BestPractices.MD
+ProjectRequirements.MD
+logs.md
+skills/

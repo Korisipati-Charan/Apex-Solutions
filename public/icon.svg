@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Beautiful rounded gradient background or solid dark indigo slate -->
+  <rect width="100%" height="100%" rx="128" fill="#4F46E5" />
+  <!-- A subtle inner border or accent shadow -->
+  <rect x="24" y="24" width="464" height="464" rx="104" fill="none" stroke="#818CF8" stroke-width="8" opacity="0.4" />
+  
+  <!-- Outer glowing concentric circle for futuristic visual feel -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#A5B4FC" stroke-width="4" stroke-dasharray="16 16" opacity="0.6" />
+  
+  <!-- Sleek premium technical 'A' terminal glyph -->
+  <path d="M180 340 L256 160 L332 340" fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M210 280 L302 280" fill="none" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" />
+  
+  <!-- Small console prompt caret in the top left -->
+  <path d="M120 120 L140 135 L120 150" fill="none" stroke="#A5B4FC" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+  <line x1="155" y1="150" x2="175" y2="150" stroke="#A5B4FC" stroke-width="12" stroke-linecap="round" />
+</svg>

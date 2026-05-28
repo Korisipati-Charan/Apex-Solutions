@@ -1,0 +1,65 @@
+name: "Production Release Protocol"
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: "Build and Create Standalone Release"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+        include:
+          - os: windows-latest
+            release_path: release/Apex-Solutions.exe
+          - os: macos-latest
+            release_path: release/Apex-Solutions.dmg
+
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+
+      - name: "Set up Node.js Environment"
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: "Install package dependencies"
+        run: npm ci
+
+      - name: "Build Frontend and Backend Bundle"
+        run: npm run build
+
+      - name: "Package Standalone Distribution"
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            npm run dist:win -- --publish never
+          else
+            npm run dist:mac -- --publish never
+          fi
+        shell: bash
+
+      - name: "Create Production Release on GitHub"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: V-1.0.0
+          files: ${{ matrix.release_path }}
+          body: |
+            ## Production Offline Client Release: V-1.0.0
+            
+            This release represents the stable standalone assessment client distribution bundle.
+            
+            ### 📦 Standalone Client Packages
+            *   **Windows (Portable)**: `Apex-Solutions.exe`
+            *   **macOS (Disk Image)**: `Apex-Solutions.dmg`
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

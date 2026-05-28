@@ -1,0 +1,22 @@
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: apex-backend-vpa
+  namespace: apex-solutions
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: apex-backend-deployment
+  updatePolicy:
+    updateMode: "Auto" # Automatically adjust resource requests at runtime based on historical usage
+  resourcePolicy:
+    containerPolicies:
+      - containerName: "apex-backend"
+        minAllowed:
+          cpu: "50m"
+          memory: "64Mi"
+        maxAllowed:
+          cpu: "1"
+          memory: "1Gi"
+        controlledResources: ["cpu", "memory"]

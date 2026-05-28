@@ -1,0 +1,6 @@
+{
+  "name": "Apex Solutions",
+  "description": "A developer-first standalone assessment platform built on a Binary Core architecture. It enables technical recruiters to synthesize customizable exam modules from documentation and perform deep logic-kernel evaluations on candidate performance with structured system reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

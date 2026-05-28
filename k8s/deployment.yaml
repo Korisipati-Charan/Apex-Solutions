@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apex-backend-deployment
+  namespace: apex-solutions
+  labels:
+    app: apex-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: apex-backend
+  template:
+    metadata:
+      labels:
+        app: apex-backend
+    spec:
+      # Block root access and apply strict pod-level security contexts
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      
+      serviceAccountName: apex-backend-sa
+      
+      containers:
+        - name: apex-backend
+          image: gcr.io/smartcampus-8c327/apex-backend:latest
+          imagePullPolicy: IfNotPresent
+          
+          # Container-level strict isolation
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          
+          ports:
+            - containerPort: 3000
+              name: http
+          
+          # Enforce absolute resource boundaries to prevent node starvation (Optimization Principle)
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          
+          # Liveness and Readiness Probes for high availability
+          livenessProbe:
+            httpGet:
+              path: /api/test-connection
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 2
+          
+          # Dynamic environment variables injected from secrets
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: apex-vault-secrets
+                  key: gemini-api-key
+          
+          # Mount /tmp as an emptyDir volume to allow write operations on an otherwise read-only container root filesystem
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp-volume
+            - mountPath: /app/dist
+              name: dist-volume
+              readOnly: true
+              
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
+        - name: dist-volume
+          emptyDir: {}

@@ -1,0 +1,46 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: apex-backend-network-policy
+  namespace: apex-solutions
+spec:
+  podSelector:
+    matchLabels:
+      app: apex-backend
+  policyTypes:
+    - Ingress
+    - Egress
+  
+  # Default-Deny Security Principle: Block all ingress/egress by default
+  # Explicitly allow traffic ONLY from the ingress gateway/controller on port 3000
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: controller
+      ports:
+        - protocol: TCP
+          port: 3000
+          
+  # Egress configuration: Restrict outgoing traffic to DNS resolution (UDP/TCP 53) and Google API endpoints for Gemini integration
+  egress:
+    # 1. Allow core DNS resolution
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # 2. Allow HTTPS outbound to external APIs (Gemini/Ollama)
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 11434
