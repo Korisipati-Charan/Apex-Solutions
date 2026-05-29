@@ -17,6 +17,7 @@ interface WelcomeScreenProps {
   onInstall: () => void;
   canInstall: boolean;
   selectedModelName: string;
+  selectedModelId: string;
   isKernelConfigured: boolean;
   onOpenSettings: () => void;
 }
@@ -28,6 +29,21 @@ export interface Source {
   wordCount: number;
 }
 
+function arrayBufferToBase64(arrayBuffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = "";
+  const chunkSize = 8192;
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const end = Math.min(i + chunkSize, bytes.length);
+    for (let j = i; j < end; j++) {
+      binary += String.fromCharCode(bytes[j]);
+    }
+  }
+
+  return btoa(binary);
+}
+
 export default function WelcomeScreen({
   onStartGeneration,
   isLoading,
@@ -35,6 +51,7 @@ export default function WelcomeScreen({
   onInstall,
   canInstall,
   selectedModelName,
+  selectedModelId,
   isKernelConfigured,
   onOpenSettings
 }: WelcomeScreenProps) {
@@ -158,15 +175,7 @@ export default function WelcomeScreen({
         reader.onload = async (e) => {
           const arrayBuffer = e.target?.result as ArrayBuffer;
           
-          // Chunked base64
-          const bytes = new Uint8Array(arrayBuffer);
-          let binary = "";
-          const len = bytes.byteLength;
-          for (let i = 0; i < len; i += 1024) {
-            const chunk = bytes.subarray(i, Math.min(i + 1024, len));
-            binary += String.fromCharCode.apply(null, chunk as any);
-          }
-          const base64 = btoa(binary);
+          const base64 = arrayBufferToBase64(arrayBuffer);
 
           try {
             const res = await fetch("/api/parse-file", {
@@ -177,6 +186,9 @@ export default function WelcomeScreen({
 
             const data = await res.json();
             if (data.ok && data.text) {
+              if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+                console.warn(`[Parser Warning] ${file.name}:`, data.warnings.join(" | "));
+              }
               addNewSource(file.name, data.text, getSourceType(ext));
             } else {
               alert(data.error || `Failed to extract text from ${file.name}`);
@@ -247,7 +259,7 @@ export default function WelcomeScreen({
       alert("Please provide manual guidelines, choose a preset, or drag/drop suitable documents (PDF, Word, Prompts) into the workspace first.");
       return;
     }
-    if (!navigator.onLine && selectedModelName !== "Local Sandbox LLM") {
+    if (!navigator.onLine && selectedModelId !== "local-llm") {
       playBeep(220, 250, "sawtooth");
       alert("No internet connection. Please verify your network settings or switch to the Local Sandbox LLM in options.");
       return;

@@ -19,6 +19,9 @@ export default function EducatorAnalysisScreen({
 }: EducatorAnalysisScreenProps) {
   const [expandedPaperId, setExpandedPaperId] = useState<number | null>(1);
   const [showFullReview, setShowFullReview] = useState(false);
+  const strengths = Array.isArray(analysis.strengths) ? analysis.strengths : [];
+  const weakAreas = Array.isArray(analysis.weakAreas) ? analysis.weakAreas : [];
+  const skillScores = Array.isArray(analysis.skillScores) ? analysis.skillScores : [];
 
   // Math helper
   const totalQuestionsSumOnPapers = setup.papers.reduce((sum, p) => sum + p.questions.length, 0);
@@ -126,7 +129,7 @@ export default function EducatorAnalysisScreen({
                 Target Strengths
               </h2>
               <ul className="space-y-3">
-                {analysis.strengths.map((str, idx) => (
+                {strengths.map((str, idx) => (
                   <li key={idx} className="text-xs text-slate-600 flex items-start gap-2 leading-relaxed">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-1.5" />
                     <span>{str}</span>
@@ -142,7 +145,7 @@ export default function EducatorAnalysisScreen({
                 Weak Areas & Gaps
               </h2>
               <div className="space-y-4">
-                {analysis.weakAreas.map((wa, idx) => (
+                {weakAreas.map((wa, idx) => (
                   <div key={idx} className="space-y-1 p-3 rounded-xl bg-slate-50 border border-slate-200/60">
                     <span className="block text-xs font-bold text-rose-600 font-mono">{wa.skillName}</span>
                     <p className="text-[11px] text-slate-500 leading-normal">{wa.gapDescription}</p>
@@ -216,7 +219,7 @@ export default function EducatorAnalysisScreen({
 
             {/* Custom SVG/Relative Interactive bars mapped purely with code style */}
             <div className="space-y-4">
-              {analysis.skillScores.map((score, sIdx) => (
+              {skillScores.map((score, sIdx) => (
                 <div key={sIdx} className="space-y-1.5">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-700 font-semibold truncate max-w-[140px]">{score.skill}</span>

@@ -5,10 +5,17 @@ import crypto from "crypto";
 let cacheFile = path.join(process.cwd(), ".llm_cache.json");
 
 export function setCacheDirectory(baseDir: string): void {
+  fs.mkdirSync(baseDir, { recursive: true });
   cacheFile = path.join(baseDir, ".llm_cache.json");
 }
 const FLUSH_DEBOUNCE_MS = 2000;
 const MAX_CACHE_ENTRIES = 500;
+const CACHE_VERSION = 2;
+
+interface DiskCachePayload {
+  version: number;
+  entries: Record<string, unknown>;
+}
 
 let llmCache: Record<string, unknown> = {};
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -20,11 +27,28 @@ export function initCache(): void {
 
   try {
     if (fs.existsSync(cacheFile)) {
-      llmCache = JSON.parse(fs.readFileSync(cacheFile, "utf-8")) as Record<string, unknown>;
+      const parsed = JSON.parse(fs.readFileSync(cacheFile, "utf-8")) as unknown;
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        (parsed as DiskCachePayload).version === CACHE_VERSION &&
+        (parsed as DiskCachePayload).entries &&
+        typeof (parsed as DiskCachePayload).entries === "object"
+      ) {
+        llmCache = (parsed as DiskCachePayload).entries;
+      } else {
+        console.warn("[LLM Cache] Cache version mismatch; starting a fresh cache.");
+        llmCache = {};
+      }
       console.log(`[LLM Cache] Loaded ${Object.keys(llmCache).length} cached entries from disk.`);
     }
   } catch (e) {
     console.warn("[LLM Cache] Failed to load disk cache on boot, starting fresh:", e);
+    try {
+      fs.renameSync(cacheFile, `${cacheFile}.corrupt-${Date.now()}`);
+    } catch {
+      // Ignore backup failures; the in-memory cache is still reset safely.
+    }
     llmCache = {};
   }
 }
@@ -40,7 +64,11 @@ function trimCacheIfNeeded(): void {
 
 async function flushCacheToDisk(): Promise<void> {
   try {
-    await fs.promises.writeFile(cacheFile, JSON.stringify(llmCache), "utf-8");
+    const payload: DiskCachePayload = {
+      version: CACHE_VERSION,
+      entries: llmCache,
+    };
+    await fs.promises.writeFile(cacheFile, JSON.stringify(payload), "utf-8");
   } catch (e) {
     console.error("[LLM Cache] Failed to write cache to disk:", e);
   }
@@ -65,6 +93,7 @@ export function computeCacheKey(
     userPrompt,
     modelName,
     responseSchema: responseSchema ?? null,
+    cacheVersion: CACHE_VERSION,
   });
   return crypto.createHash("sha256").update(data).digest("hex");
 }

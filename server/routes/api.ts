@@ -6,6 +6,7 @@ import type { GraphState } from "../graph/types.ts";
 import { callLLM } from "../llm/router.ts";
 import { normalizeCandidateAnswer, normalizeLetterAnswer } from "../normalize/examPayload.ts";
 import { validateGenerateExamBody } from "../validate/request.ts";
+import { sendApiError } from "./errors.ts";
 import { handleParseFile } from "./parseFile.ts";
 
 export function registerApiRoutes(app: Express): void {
@@ -13,7 +14,7 @@ export function registerApiRoutes(app: Express): void {
     try {
       const { model, apiConfig } = req.body as { model: string; apiConfig?: ApiConfig };
       if (!model) {
-        res.status(400).json({ ok: false, error: "Model selection is required." });
+        sendApiError(res, 400, "Model selection is required.", "MODEL_REQUIRED");
         return;
       }
 
@@ -28,7 +29,7 @@ export function registerApiRoutes(app: Express): void {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to establish AI core connection.";
       console.error("[Test Connection Error]:", message);
-      res.status(500).json({ ok: false, error: message });
+      sendApiError(res, 500, message, "TEST_CONNECTION_FAILED");
     }
   });
 
@@ -40,7 +41,7 @@ export function registerApiRoutes(app: Express): void {
     try {
       const validated = validateGenerateExamBody(req.body);
       if (validated.ok === false) {
-        res.status(400).json({ error: validated.error });
+        sendApiError(res, 400, validated.error, "INVALID_GENERATE_EXAM_REQUEST");
         return;
       }
 
@@ -60,6 +61,7 @@ export function registerApiRoutes(app: Express): void {
         developerProfiles: {},
         questionsGenerated: {},
         errors: [],
+        generationWarnings: [],
       };
 
       const finalState = await runExamGenerationGraph(initialState);
@@ -77,12 +79,13 @@ export function registerApiRoutes(app: Express): void {
       res.json({
         skills: finalState.skills,
         papers: finalState.papers,
+        generationWarnings: finalState.generationWarnings,
       });
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "An unexpected error occurred during assessment generation.";
       console.error("[LangGraph Engine Fatal Error]:", message);
-      res.status(500).json({ error: message });
+      sendApiError(res, 500, message, "GENERATE_EXAM_FAILED");
     }
   });
 
@@ -113,52 +116,73 @@ export function registerApiRoutes(app: Express): void {
       };
 
       if (!examSetup || !paperResponses) {
-        res.status(400).json({ error: "Exam details and candidate responses are required." });
+        sendApiError(
+          res,
+          400,
+          "Exam details and candidate responses are required.",
+          "INVALID_ANALYSIS_REQUEST"
+        );
         return;
       }
+
+      const skillScoreMap = new Map<string, { correct: number; total: number }>();
+      const papersSubmitted = examSetup.papers.map((refPaper) => {
+        const paperRespState = paperResponses[String(refPaper.id)] || {
+          answers: {},
+          timeSpentSecs: 0,
+        };
+
+        let correctCount = 0;
+        const details: Record<string, unknown>[] = [];
+
+        for (const q of refPaper.questions) {
+          const resp = paperRespState.answers[q.id];
+          const candidateLetter = normalizeCandidateAnswer(resp?.selectedOption);
+          const correctLetter = normalizeLetterAnswer(q.correctAnswer);
+          const candidateAnswer = candidateLetter ?? "No Answer";
+          const isCorrect = candidateLetter !== null && candidateLetter === correctLetter;
+          if (isCorrect) correctCount++;
+
+          const skillName = q.skill || "General Software Engineering";
+          const currentSkillScore = skillScoreMap.get(skillName) || { correct: 0, total: 0 };
+          currentSkillScore.total++;
+          if (isCorrect) currentSkillScore.correct++;
+          skillScoreMap.set(skillName, currentSkillScore);
+
+          details.push({
+            skill: skillName,
+            question: q.text,
+            candidateAnswer,
+            correctAnswer: correctLetter,
+            isCorrect,
+            codeSnippet: q.codeSnippet || "",
+          });
+        }
+
+        return {
+          paperId: refPaper.id,
+          paperName: refPaper.name,
+          totalQuestions: refPaper.questions.length,
+          correctAnswers: correctCount,
+          scorePercentage:
+            refPaper.questions.length > 0 ? (correctCount / refPaper.questions.length) * 100 : 0,
+          timeSpentMins: Math.ceil((paperRespState.timeSpentSecs || 0) / 60),
+          details,
+        };
+      });
+
+      const skillScores = Array.from(skillScoreMap.entries()).map(([skill, score]) => ({
+        skill,
+        correct: score.correct,
+        total: score.total,
+        percentage: score.total > 0 ? (score.correct / score.total) * 100 : 0,
+      }));
 
       const candidateData = {
         title: examSetup.title,
         skillsTargeted: examSetup.skills,
-        papersSubmitted: Object.entries(paperResponses).map(([paperIdStr, paperRespState]) => {
-          const paperId = parseInt(paperIdStr, 10);
-          const refPaper = examSetup.papers.find((p) => p.id === paperId);
-
-          let correctCount = 0;
-          let totalCount = 0;
-          const details: Record<string, unknown>[] = [];
-
-          if (refPaper) {
-            totalCount = refPaper.questions.length;
-            for (const q of refPaper.questions) {
-              const resp = paperRespState.answers[q.id];
-              const candidateLetter = normalizeCandidateAnswer(resp?.selectedOption);
-              const correctLetter = normalizeLetterAnswer(q.correctAnswer);
-              const candidateAnswer = candidateLetter ?? "No Answer";
-              const isCorrect = candidateLetter !== null && candidateLetter === correctLetter;
-              if (isCorrect) correctCount++;
-
-              details.push({
-                skill: q.skill,
-                question: q.text,
-                candidateAnswer,
-                correctAnswer: correctLetter,
-                isCorrect,
-                codeSnippet: q.codeSnippet || "",
-              });
-            }
-          }
-
-          return {
-            paperId,
-            paperName: refPaper ? refPaper.name : `Paper ${paperId}`,
-            totalQuestions: totalCount,
-            correctAnswers: correctCount,
-            scorePercentage: totalCount > 0 ? (correctCount / totalCount) * 100 : 0,
-            timeSpentMins: Math.ceil(paperRespState.timeSpentSecs / 60),
-            details,
-          };
-        }),
+        skillScores,
+        papersSubmitted,
       };
 
       const educatorSystemPrompt = `You are a Top Industry Educator. Analyze the candidate's exam performance and weak areas based solely on correct/incorrect answers. Create a structured analysis of strengths and gaps. Speak directly to the developer in a warm, motivating technical tone. Do NOT include any recommendation roadmap or study timeline.`;
@@ -187,21 +211,8 @@ ${JSON.stringify(candidateData, null, 2)}
               required: ["skillName", "gapDescription", "keyConceptToMaster"],
             },
           },
-          skillScores: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                skill: { type: Type.STRING },
-                correct: { type: Type.INTEGER },
-                total: { type: Type.INTEGER },
-                percentage: { type: Type.NUMBER },
-              },
-              required: ["skill", "correct", "total", "percentage"],
-            },
-          },
         },
-        required: ["summary", "strengths", "weakAreas", "skillScores"],
+        required: ["summary", "strengths", "weakAreas"],
       };
 
       const data = (await callLLM(
@@ -210,14 +221,19 @@ ${JSON.stringify(candidateData, null, 2)}
         instructions,
         educatorSchema,
         apiConfig
-      )) as EducatorAnalysisResponse;
+      )) as Partial<EducatorAnalysisResponse>;
 
-      res.json(data);
+      res.json({
+        summary: String(data.summary || "Assessment analysis completed."),
+        strengths: Array.isArray(data.strengths) ? data.strengths : [],
+        weakAreas: Array.isArray(data.weakAreas) ? data.weakAreas : [],
+        skillScores,
+      });
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "An error occurred during Educator pedagogic planning.";
       console.error("Educator AI Error:", message);
-      res.status(500).json({ error: message });
+      sendApiError(res, 500, message, "ANALYZE_PERFORMANCE_FAILED");
     }
   });
 }

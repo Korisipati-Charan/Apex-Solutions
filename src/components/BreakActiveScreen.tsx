@@ -1,42 +1,21 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import { playBeep } from "../utils/audio";
 import { Coffee, ChevronRight, Volume2, ShieldAlert } from "lucide-react";
 
 interface BreakActiveScreenProps {
   durationMins: number;
+  timeRemainingSecs: number;
   onSkipBreak: () => void;
 }
 
-export default function BreakActiveScreen({ durationMins, onSkipBreak }: BreakActiveScreenProps) {
-  const [secondsRemaining, setSecondsRemaining] = useState(durationMins * 60);
-
+export default function BreakActiveScreen({ durationMins, timeRemainingSecs, onSkipBreak }: BreakActiveScreenProps) {
   useEffect(() => {
-    // Local tick decrement countdown
-    const timer = setInterval(() => {
-      setSecondsRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        
-        const nextSec = prev - 1;
-        
-        // Each paper is followed by a break of one hour which does a beeping at the last 15 seconds of the break.
-        // Beep at last 15 seconds countdown, once per second!
-        if (nextSec <= 15 && nextSec > 0) {
-          // Play higher pitch warning beep
-          playBeep(1000, 100, "sine");
-        } else if (nextSec === 0) {
-          // Double buzz finish beep
-          playBeep(500, 400, "triangle");
-        }
-        
-        return nextSec;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
+    if (timeRemainingSecs <= 15 && timeRemainingSecs > 0) {
+      playBeep(1000, 100, "sine");
+    } else if (timeRemainingSecs === 0) {
+      playBeep(500, 400, "triangle");
+    }
+  }, [timeRemainingSecs]);
 
   const formatCountdown = (totalSecs: number) => {
     const mins = Math.floor(totalSecs / 60);
@@ -45,10 +24,10 @@ export default function BreakActiveScreen({ durationMins, onSkipBreak }: BreakAc
   };
 
   const totalSecsCombined = durationMins * 60;
-  const progressRatio = secondsRemaining / totalSecsCombined;
+  const progressRatio = totalSecsCombined > 0 ? timeRemainingSecs / totalSecsCombined : 0;
   
   // Highlight last 15 warning pulse
-  const isFinalWarning = secondsRemaining <= 15 && secondsRemaining > 0;
+  const isFinalWarning = timeRemainingSecs <= 15 && timeRemainingSecs > 0;
 
   return (
     <div className="max-w-md mx-auto px-4 py-12 text-center text-slate-800 space-y-8">
@@ -93,7 +72,7 @@ export default function BreakActiveScreen({ durationMins, onSkipBreak }: BreakAc
         {/* Text countdown inside progress circle */}
         <div className="text-center z-10 space-y-1">
           <span className="block text-3xl font-mono font-bold tracking-tight text-slate-800">
-            {formatCountdown(secondsRemaining)}
+            {formatCountdown(timeRemainingSecs)}
           </span>
           <span className="block text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">
             Remaining Time

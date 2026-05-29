@@ -6,6 +6,8 @@ interface ActiveExamTerminalProps {
   paper: Paper;
   answers: Record<string, CandidateResponse>;
   timeRemainingSecs: number;
+  isPaused: boolean;
+  onPauseChange: (isPaused: boolean) => void;
   onSelectOption: (questionId: string, option: string) => void;
   onToggleFlag: (questionId: string) => void;
   onUpdateScratchpad: (questionId: string, text: string) => void;
@@ -16,37 +18,17 @@ export default function ActiveExamTerminal({
   paper,
   answers,
   timeRemainingSecs,
+  isPaused,
+  onPauseChange,
   onSelectOption,
   onToggleFlag,
   onUpdateScratchpad,
   onSubmitPaper
 }: ActiveExamTerminalProps) {
   const [activeIdx, setActiveIdx] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
-  const [localSeconds, setLocalSeconds] = useState(timeRemainingSecs);
 
   const activeQuestion: Question | undefined = paper.questions[activeIdx];
-
-  // Sync internal timer state
-  useEffect(() => {
-    setLocalSeconds(timeRemainingSecs);
-  }, [timeRemainingSecs]);
-
-  // Local clock decrement tick
-  useEffect(() => {
-    if (isPaused) return;
-    const interval = setInterval(() => {
-      setLocalSeconds((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isPaused]);
 
   // Check if current question is flagged or answered
   const isQuestionAnswered = (qId: string) => answers[qId]?.selectedOption !== null && answers[qId]?.selectedOption !== undefined;
@@ -144,17 +126,17 @@ export default function ActiveExamTerminal({
           <div className="flex items-center gap-3">
             {/* Countdown timer */}
             <div id="countdown-clock" className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-mono font-bold tracking-wide border ${
-              localSeconds < 300 
+              timeRemainingSecs < 300 
                 ? "bg-rose-50 border-rose-300 text-rose-600 animate-pulse" 
                 : "bg-slate-50 border-slate-200 text-slate-800"
             }`}>
               <Clock className="w-4 h-4 text-indigo-600" />
-              <span>{formatTime(localSeconds)}</span>
+              <span>{formatTime(timeRemainingSecs)}</span>
             </div>
 
             {/* Pause Control */}
             <button
-              onClick={() => setIsPaused(!isPaused)}
+              onClick={() => onPauseChange(!isPaused)}
               className="px-3.5 py-2 rounded-xl text-xs font-mono font-bold border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               {isPaused ? (
@@ -183,7 +165,7 @@ export default function ActiveExamTerminal({
               Your timer is held. All current answers are securely cached. Press Resume to restore developer questions.
             </p>
             <button
-              onClick={() => setIsPaused(false)}
+              onClick={() => onPauseChange(false)}
               className="px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold uppercase tracking-wider text-slate-50 transition-all shadow-sm cursor-pointer"
             >
               Resume Examination

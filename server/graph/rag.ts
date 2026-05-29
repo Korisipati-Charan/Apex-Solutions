@@ -143,7 +143,10 @@ Reply in strict JSON format:
       apiConfig
     )) as { bestSegmentIndex?: number };
 
-    const selectedIdx = rankResult.bestSegmentIndex ?? 0;
+    const requestedIdx = Number.isInteger(rankResult.bestSegmentIndex)
+      ? rankResult.bestSegmentIndex!
+      : 0;
+    const selectedIdx = Math.min(Math.max(requestedIdx, 0), topLexical.length - 1);
     const bestMatch = topLexical[selectedIdx] || topLexical[0];
     console.log(
       `[RAG Engine] Selected segment ${selectedIdx} (lexical score ${bestMatch.lexicalScore.toFixed(3)})`

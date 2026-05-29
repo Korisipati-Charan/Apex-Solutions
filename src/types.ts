@@ -23,6 +23,7 @@ export interface ExamSetup {
   paperDurationMins: number;
   breakDurationMins: number; // default sixty minutes (3600 seconds)
   createdAt: string;
+  generationWarnings?: string[];
 }
 
 export interface CandidateResponse {
@@ -87,4 +88,3 @@ export interface HistoricalReport {
   paperResponses: Record<number, PaperResponseState>;
   educatorAnalysis: EducatorAnalysis;
 }
-

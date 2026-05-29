@@ -14,6 +14,7 @@ import {
   CheckCircle
 } from "lucide-react";
 import { playBeep } from "../utils/audio";
+import { safeSetItem } from "../utils/safeStorage";
 
 interface SystemSettingsModalProps {
   isOpen: boolean;
@@ -91,11 +92,15 @@ export default function SystemSettingsModal({
 }: SystemSettingsModalProps) {
   const [config, setConfig] = useState<ApiConfig>({
     geminiApiKey: "",
+    geminiModel: "",
     openaiApiKey: "",
+    openaiModel: "gpt-4o",
     anthropicApiKey: "",
+    anthropicModel: "claude-3-5-sonnet-20241022",
     sarvamApiKey: "",
+    sarvamModel: "sarvam-2b-instruct",
     localLlmUrl: "http://localhost:11434/v1",
-    localLlmModel: "llama3",
+    localLlmModel: "",
     otherLlmUrl: "https://api.openai.com/v1",
     otherLlmModel: "gpt-4o",
     otherLlmApiKey: ""
@@ -228,7 +233,7 @@ export default function SystemSettingsModal({
       playBeep(659.25, 150, "sine");
     }, 80);
 
-    localStorage.setItem("apex_api_config", JSON.stringify(config));
+    safeSetItem("apex_api_config", JSON.stringify(config));
     onClose();
   };
 
@@ -352,7 +357,7 @@ export default function SystemSettingsModal({
                 <>
                   {/* Gemini Provider Input Block */}
                   {activeModelInfo.provider === "gemini" && (
-                <div className="space-y-1.5 animate-scale-up">
+                <div className="space-y-3.5 animate-scale-up">
                   <div className="flex justify-between items-center">
                     <label className="text-[11px] font-bold font-mono text-indigo-300 flex items-center gap-1.5">
                       <Key className="w-3.5 h-3.5" />
@@ -376,12 +381,25 @@ export default function SystemSettingsModal({
                       {showKeys.gemini ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
                   </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold font-mono text-indigo-300 flex items-center gap-1.5">
+                      <Cpu className="w-3.5 h-3.5" />
+                      <span>Gemini Model ID</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={config.geminiModel}
+                      onChange={(e) => handleInputChange("geminiModel", e.target.value)}
+                      placeholder={selectedModel === "gemini-3.5-pro" ? "gemini-3.5-pro" : "gemini-3.5-flash"}
+                      className="w-full bg-slate-900 border border-slate-750 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg py-1.5 px-3 text-xs font-mono placeholder-slate-550 focus:outline-none"
+                    />
+                  </div>
                 </div>
               )}
 
               {/* OpenAI Provider Input Block */}
               {activeModelInfo.provider === "openai" && (
-                <div className="space-y-1.5 animate-scale-up">
+                <div className="space-y-3.5 animate-scale-up">
                   <div className="flex justify-between items-center">
                     <label className="text-[11px] font-bold font-mono text-emerald-400 flex items-center gap-1.5">
                       <Key className="w-3.5 h-3.5" />
@@ -406,12 +424,25 @@ export default function SystemSettingsModal({
                       {showKeys.openai ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
                   </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold font-mono text-emerald-400 flex items-center gap-1.5">
+                      <Cpu className="w-3.5 h-3.5" />
+                      <span>OpenAI Model ID</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={config.openaiModel}
+                      onChange={(e) => handleInputChange("openaiModel", e.target.value)}
+                      placeholder="gpt-4o, gpt-4.1, o3, or your paid model ID"
+                      className="w-full bg-slate-900 border border-slate-750 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-lg py-1.5 px-3 text-xs font-mono placeholder-slate-550 focus:outline-none"
+                    />
+                  </div>
                 </div>
               )}
 
               {/* Anthropic Provider Input Block */}
               {activeModelInfo.provider === "anthropic" && (
-                <div className="space-y-1.5 animate-scale-up">
+                <div className="space-y-3.5 animate-scale-up">
                   <div className="flex justify-between items-center">
                     <label className="text-[11px] font-bold font-mono text-amber-450 flex items-center gap-1.5">
                       <Key className="w-3.5 h-3.5" />
@@ -436,12 +467,25 @@ export default function SystemSettingsModal({
                       {showKeys.anthropic ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
                   </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold font-mono text-amber-450 flex items-center gap-1.5">
+                      <Cpu className="w-3.5 h-3.5" />
+                      <span>Claude Model ID</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={config.anthropicModel}
+                      onChange={(e) => handleInputChange("anthropicModel", e.target.value)}
+                      placeholder="claude-3-5-sonnet-20241022"
+                      className="w-full bg-slate-900 border border-slate-750 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-lg py-1.5 px-3 text-xs font-mono placeholder-slate-550 focus:outline-none"
+                    />
+                  </div>
                 </div>
               )}
 
               {/* Sarvam Provider Input Block */}
               {activeModelInfo.provider === "sarvam" && (
-                <div className="space-y-1.5 animate-scale-up">
+                <div className="space-y-3.5 animate-scale-up">
                   <div className="flex justify-between items-center">
                     <label className="text-[11px] font-bold font-mono text-orange-400 flex items-center gap-1.5">
                       <Key className="w-3.5 h-3.5" />
@@ -465,6 +509,19 @@ export default function SystemSettingsModal({
                     >
                       {showKeys.sarvam ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold font-mono text-orange-400 flex items-center gap-1.5">
+                      <Cpu className="w-3.5 h-3.5" />
+                      <span>Sarvam Model ID</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={config.sarvamModel}
+                      onChange={(e) => handleInputChange("sarvamModel", e.target.value)}
+                      placeholder="sarvam-2b-instruct"
+                      className="w-full bg-slate-900 border border-slate-750 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 rounded-lg py-1.5 px-3 text-xs font-mono placeholder-slate-550 focus:outline-none"
+                    />
                   </div>
                 </div>
               )}

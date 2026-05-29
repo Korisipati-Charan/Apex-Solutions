@@ -9,9 +9,13 @@ export type UiQuestionCount = (typeof UI_QUESTION_COUNTS)[number];
 /** Mirrors `SystemSettingsModal` ApiConfig and `localStorage` key `apex_api_config`. */
 export interface ApiConfig {
   geminiApiKey?: string;
+  geminiModel?: string;
   openaiApiKey?: string;
+  openaiModel?: string;
   anthropicApiKey?: string;
+  anthropicModel?: string;
   sarvamApiKey?: string;
+  sarvamModel?: string;
   localLlmUrl?: string;
   localLlmModel?: string;
   otherLlmUrl?: string;
@@ -49,6 +53,7 @@ export interface GenerateExamRequest {
 export interface GenerateExamResponse {
   skills: string[];
   papers: UiPaper[];
+  generationWarnings?: string[];
 }
 
 export interface ParseFileRequest {
@@ -59,6 +64,7 @@ export interface ParseFileRequest {
 export interface ParseFileResponse {
   ok: boolean;
   text?: string;
+  warnings?: string[];
   error?: string;
 }
 

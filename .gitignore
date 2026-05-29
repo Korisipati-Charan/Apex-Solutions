@@ -17,3 +17,4 @@ ProjectRequirements.MD
 logs.md
 skills/
 .llm_cache.json
+.llm_cache.json.corrupt-*

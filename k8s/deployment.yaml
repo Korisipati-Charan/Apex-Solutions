@@ -57,7 +57,7 @@ spec:
           # Liveness and Readiness Probes for high availability
           livenessProbe:
             httpGet:
-              path: /api/test-connection
+              path: /healthz
               port: 3000
             initialDelaySeconds: 15
             periodSeconds: 20
@@ -65,7 +65,7 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: 3000
             initialDelaySeconds: 10
             periodSeconds: 10
@@ -79,6 +79,8 @@ spec:
               value: "production"
             - name: PORT
               value: "3000"
+            - name: APEX_RUNTIME_DIR
+              value: "/tmp"
             - name: GEMINI_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -89,12 +91,7 @@ spec:
           volumeMounts:
             - mountPath: /tmp
               name: tmp-volume
-            - mountPath: /app/dist
-              name: dist-volume
-              readOnly: true
               
       volumes:
         - name: tmp-volume
-          emptyDir: {}
-        - name: dist-volume
           emptyDir: {}

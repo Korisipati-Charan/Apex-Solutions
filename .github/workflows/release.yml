@@ -13,8 +13,8 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build-and-release:
-    name: "Build and Create Standalone Release"
+  build:
+    name: "Build Standalone Package"
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -22,8 +22,10 @@ jobs:
         include:
           - os: windows-latest
             release_path: release/Apex-Solutions.exe
+            artifact_name: apex-windows-exe
           - os: macos-latest
             release_path: release/Apex-Solutions.dmg
+            artifact_name: apex-macos-dmg
 
     steps:
       - name: "Checkout code"
@@ -32,8 +34,8 @@ jobs:
       - name: "Set up Node.js Environment"
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: "Install package dependencies"
         run: npm ci
@@ -53,19 +55,35 @@ jobs:
           fi
         shell: bash
 
+      - name: "Upload Packaged Artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.release_path }}
+
+  release:
+    name: "Create Production Release"
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Download packaged artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
       - name: "Create Production Release on GitHub"
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: V-${{ github.run_number }}
-          files: ${{ matrix.release_path }}
+          files: release-artifacts/**/*
           body: |
             ## Production Offline Client Release: V-${{ github.run_number }}
-            
+
             This release represents the stable standalone assessment client distribution bundle.
-            
-            ### 📦 Standalone Client Packages
-            *   **Windows (Portable)**: `Apex-Solutions.exe`
-            *   **macOS (Disk Image)**: `Apex-Solutions.dmg`
+
+            ### Standalone Client Packages
+            * **Windows (Portable)**: `Apex-Solutions.exe`
+            * **macOS (Disk Image)**: `Apex-Solutions.dmg`
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

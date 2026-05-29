@@ -5,11 +5,12 @@ import BreakActiveScreen from "./components/BreakActiveScreen";
 import EducatorAnalysisScreen from "./components/EducatorAnalysisScreen";
 import PreviousReportsPanel from "./components/PreviousReportsPanel";
 import SystemSettingsModal from "./components/SystemSettingsModal";
-import { ExamSetup, CandidateResponse, ExamState, EducatorAnalysis, HistoricalReport, Paper } from "./types";
+import { ExamSetup, CandidateResponse, ExamState, EducatorAnalysis, HistoricalReport, Paper, PaperResponseState } from "./types";
 import { ShieldCheck, HardDrive, HelpCircle, ArrowRight, Zap, RefreshCw, Layers, Compass, ExternalLink, History, Settings, Download, Home } from "lucide-react";
 import { playBeep } from "./utils/audio";
 import { downloadQuestionPaper } from "./utils/downloadPaper";
 import { buildInitialPaperResponses, paperAnswersMap } from "./utils/paperResponses";
+import { debouncedSetItem, safeRemoveItem, safeSetItem } from "./utils/safeStorage";
 
 
 export default function App() {
@@ -47,6 +48,7 @@ export default function App() {
   const [isOfflineMode, setIsOfflineMode] = useState(!navigator.onLine);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isStandalone, setIsStandalone] = useState<boolean>(false);
+  const [isPaused, setIsPaused] = useState(false);
 
   // Advanced settings & reports history states
   const [reports, setReports] = useState<HistoricalReport[]>([]);
@@ -61,11 +63,15 @@ export default function App() {
     if (!activeKernelId) return false;
     let apiConfig = {
       geminiApiKey: "",
+      geminiModel: "",
       openaiApiKey: "",
+      openaiModel: "gpt-4o",
       anthropicApiKey: "",
+      anthropicModel: "claude-3-5-sonnet-20241022",
       sarvamApiKey: "",
+      sarvamModel: "sarvam-2b-instruct",
       localLlmUrl: "http://localhost:11434/v1",
-      localLlmModel: "llama3",
+      localLlmModel: "",
       otherLlmUrl: "https://api.openai.com/v1",
       otherLlmModel: "gpt-4o",
       otherLlmApiKey: ""
@@ -175,17 +181,31 @@ export default function App() {
 
       if (cachedSetup) {
         const parsedSetup = JSON.parse(cachedSetup) as ExamSetup;
+        const baseResponses = buildInitialPaperResponses(
+          parsedSetup.papers,
+          parsedSetup.paperDurationMins
+        );
         
-        let parsedResponses = {
-          1: { paperId: 1, answers: {}, timeRemainingSecs: parsedSetup.paperDurationMins * 60, status: "not_started" as const, timeSpentSecs: 0 },
-          2: { paperId: 2, answers: {}, timeRemainingSecs: parsedSetup.paperDurationMins * 60, status: "not_started" as const, timeSpentSecs: 0 }
-        };
+        let parsedResponses: Record<number, PaperResponseState> = baseResponses;
 
         if (cachedResponses) {
-          parsedResponses = JSON.parse(cachedResponses);
+          const cached = JSON.parse(cachedResponses) as Record<string, PaperResponseState>;
+          parsedResponses = Object.fromEntries(
+            parsedSetup.papers.map((paper) => {
+              const cachedPaper = cached[String(paper.id)];
+              return [
+                paper.id,
+                {
+                  ...baseResponses[paper.id],
+                  ...(cachedPaper || {}),
+                  paperId: paper.id,
+                },
+              ];
+            })
+          ) as Record<number, PaperResponseState>;
         }
 
-        let parsedStatus = "setup" as const;
+        let parsedStatus: ExamState["overallStatus"] = "setup";
         if (cachedStatus) {
           parsedStatus = cachedStatus as any;
         }
@@ -194,10 +214,21 @@ export default function App() {
         if (cachedCurrentPaper) {
           parsedPaperId = parseInt(cachedCurrentPaper, 10);
         }
+        if (!parsedSetup.papers.some((paper) => paper.id === parsedPaperId)) {
+          parsedPaperId = parsedSetup.papers[0]?.id || 1;
+        }
 
-        let parsedBreak = { status: "inactive" as const, timeRemainingSecs: parsedSetup.breakDurationMins * 60 };
+        let parsedBreak: ExamState["breakState"] = { status: "inactive", timeRemainingSecs: parsedSetup.breakDurationMins * 60 };
         if (cachedBreakState) {
           parsedBreak = JSON.parse(cachedBreakState);
+        }
+
+        if (parsedSetup.papers.length <= 1 && (parsedStatus === "break" || parsedStatus === "paper_2")) {
+          parsedStatus = parsedResponses[1]?.status === "submitted" || parsedResponses[1]?.status === "timed_out"
+            ? "completed"
+            : "paper_1";
+          parsedPaperId = 1;
+          parsedBreak = { status: "inactive" as const, timeRemainingSecs: parsedSetup.breakDurationMins * 60 };
         }
 
         let parsedAnalysisObj: EducatorAnalysis | null = null;
@@ -244,11 +275,13 @@ export default function App() {
   useEffect(() => {
     const status = examState.overallStatus;
     if (status !== "paper_1" && status !== "paper_2") return;
+    if (isPaused) return;
     
     const paperId = examState.currentPaperId;
     const interval = setInterval(() => {
       setExamState((prev) => {
         const resp = prev.paperResponses[paperId];
+        if (!resp) return prev;
         if (resp.timeRemainingSecs <= 1) {
           clearInterval(interval);
           // Auto submit paper on timeout
@@ -264,7 +297,7 @@ export default function App() {
           };
 
           // Cache responses
-          localStorage.setItem("apex_exam_responses", JSON.stringify(autoSubmittedResponses));
+          safeSetItem("apex_exam_responses", JSON.stringify(autoSubmittedResponses));
 
           // Compute transitional route
           let nextStatus = prev.overallStatus;
@@ -281,8 +314,8 @@ export default function App() {
             nextStatus = "completed";
           }
 
-          localStorage.setItem("apex_exam_overall_status", nextStatus);
-          localStorage.setItem("apex_exam_break_state", JSON.stringify(newBreak));
+          safeSetItem("apex_exam_overall_status", nextStatus);
+          safeSetItem("apex_exam_break_state", JSON.stringify(newBreak));
 
           return {
             ...prev,
@@ -303,7 +336,7 @@ export default function App() {
           }
         };
 
-        localStorage.setItem("apex_exam_responses", JSON.stringify(updatedResponses));
+        debouncedSetItem("apex_exam_responses", JSON.stringify(updatedResponses));
         return {
           ...prev,
           paperResponses: updatedResponses
@@ -312,7 +345,13 @@ export default function App() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [examState.overallStatus, examState.currentPaperId]);
+  }, [examState.overallStatus, examState.currentPaperId, isPaused]);
+
+  useEffect(() => {
+    if (examState.overallStatus !== "paper_1" && examState.overallStatus !== "paper_2") {
+      setIsPaused(false);
+    }
+  }, [examState.overallStatus]);
 
   // 3. Sync Break Countdown Ticking down
   useEffect(() => {
@@ -326,9 +365,9 @@ export default function App() {
           const nextStatus = "paper_2" as const;
           const updatedBreak = { ...prev.breakState, status: "completed" as const, timeRemainingSecs: 0 };
           
-          localStorage.setItem("apex_exam_overall_status", nextStatus);
-          localStorage.setItem("apex_exam_break_state", JSON.stringify(updatedBreak));
-          localStorage.setItem("apex_exam_current_paper_id", "2");
+          safeSetItem("apex_exam_overall_status", nextStatus);
+          safeSetItem("apex_exam_break_state", JSON.stringify(updatedBreak));
+          safeSetItem("apex_exam_current_paper_id", "2");
 
           return {
             ...prev,
@@ -343,7 +382,7 @@ export default function App() {
           timeRemainingSecs: prev.breakState.timeRemainingSecs - 1
         };
 
-        localStorage.setItem("apex_exam_break_state", JSON.stringify(updatedBreak));
+        debouncedSetItem("apex_exam_break_state", JSON.stringify(updatedBreak));
         return {
           ...prev,
           breakState: updatedBreak
@@ -413,11 +452,17 @@ export default function App() {
       const normalizedPapers = (parsedData.papers || []).map((p: Paper, idx: number) => ({
         id: p.id || idx + 1,
         name: p.name || `Paper ${p.id || idx + 1}: Technical Assessment`,
-        questions: (p.questions || []).map((q, qIdx) => ({
-          ...q,
-          id: q.id || `q_${qIdx + 1}`,
-          correctAnswer: String(q.correctAnswer || "A").trim().charAt(0).toUpperCase(),
-        })),
+        questions: (p.questions || []).map((q, qIdx) => {
+          const correctAnswer = String(q.correctAnswer || "").trim().charAt(0).toUpperCase();
+          if (!["A", "B", "C", "D"].includes(correctAnswer)) {
+            throw new Error(`Generated question ${qIdx + 1} in Paper ${p.id || idx + 1} has an invalid answer key.`);
+          }
+          return {
+            ...q,
+            id: q.id || `q_${qIdx + 1}`,
+            correctAnswer,
+          };
+        }),
         durationMins: config.paperDurationMins,
       }));
 
@@ -429,6 +474,7 @@ export default function App() {
         paperDurationMins: config.paperDurationMins,
         breakDurationMins: config.breakDurationMins,
         createdAt: new Date().toISOString(),
+        generationWarnings: Array.isArray(parsedData.generationWarnings) ? parsedData.generationWarnings : [],
       };
 
       const initializedResponses = buildInitialPaperResponses(
@@ -453,11 +499,11 @@ export default function App() {
       });
 
       // Save to cache for offline capabilities
-      localStorage.setItem("apex_exam_setup", JSON.stringify(newExamSetup));
-      localStorage.setItem("apex_exam_responses", JSON.stringify(initializedResponses));
-      localStorage.setItem("apex_exam_overall_status", initialStatus);
-      localStorage.setItem("apex_exam_current_paper_id", "1");
-      localStorage.removeItem("apex_exam_educator_analysis");
+      safeSetItem("apex_exam_setup", JSON.stringify(newExamSetup));
+      safeSetItem("apex_exam_responses", JSON.stringify(initializedResponses));
+      safeSetItem("apex_exam_overall_status", initialStatus);
+      safeSetItem("apex_exam_current_paper_id", "1");
+      safeRemoveItem("apex_exam_educator_analysis");
 
     } catch (err: any) {
       console.error(err);
@@ -492,7 +538,7 @@ export default function App() {
         }
       };
 
-      localStorage.setItem("apex_exam_responses", JSON.stringify(newState.paperResponses));
+      safeSetItem("apex_exam_responses", JSON.stringify(newState.paperResponses));
       return newState;
     });
   };
@@ -523,7 +569,7 @@ export default function App() {
         }
       };
 
-      localStorage.setItem("apex_exam_responses", JSON.stringify(newState.paperResponses));
+      safeSetItem("apex_exam_responses", JSON.stringify(newState.paperResponses));
       return newState;
     });
   };
@@ -554,7 +600,7 @@ export default function App() {
         }
       };
 
-      localStorage.setItem("apex_exam_responses", JSON.stringify(newState.paperResponses));
+      safeSetItem("apex_exam_responses", JSON.stringify(newState.paperResponses));
       return newState;
     });
   };
@@ -590,10 +636,10 @@ export default function App() {
         nextStatus = "completed";
       }
 
-      localStorage.setItem("apex_exam_responses", JSON.stringify(updatedPaperResponses));
-      localStorage.setItem("apex_exam_overall_status", nextStatus);
-      localStorage.setItem("apex_exam_break_state", JSON.stringify(updatedBreak));
-      localStorage.setItem("apex_exam_current_paper_id", currentPaperId === 1 && prev.examSetup && prev.examSetup.papers.length > 1 ? "2" : "1");
+      safeSetItem("apex_exam_responses", JSON.stringify(updatedPaperResponses));
+      safeSetItem("apex_exam_overall_status", nextStatus);
+      safeSetItem("apex_exam_break_state", JSON.stringify(updatedBreak));
+      safeSetItem("apex_exam_current_paper_id", currentPaperId === 1 && prev.examSetup && prev.examSetup.papers.length > 1 ? "2" : "1");
 
       return {
         ...prev,
@@ -623,10 +669,10 @@ export default function App() {
         }
       };
 
-      localStorage.setItem("apex_exam_overall_status", nextStatus);
-      localStorage.setItem("apex_exam_break_state", JSON.stringify(updatedBreak));
-      localStorage.setItem("apex_exam_current_paper_id", "2");
-      localStorage.setItem("apex_exam_responses", JSON.stringify(updatedPaperResponses));
+      safeSetItem("apex_exam_overall_status", nextStatus);
+      safeSetItem("apex_exam_break_state", JSON.stringify(updatedBreak));
+      safeSetItem("apex_exam_current_paper_id", "2");
+      safeSetItem("apex_exam_responses", JSON.stringify(updatedPaperResponses));
 
       return {
         ...prev,
@@ -692,7 +738,14 @@ export default function App() {
         throw new Error(errPayload.error || "The system engine encountered an error while auditing solutions.");
       }
 
-      const parsedAnalysis: EducatorAnalysis = await response.json();
+      const analysisPayload = await response.json();
+      const parsedAnalysis: EducatorAnalysis = {
+        summary: String(analysisPayload.summary || "Assessment analysis completed."),
+        strengths: Array.isArray(analysisPayload.strengths) ? analysisPayload.strengths : [],
+        weakAreas: Array.isArray(analysisPayload.weakAreas) ? analysisPayload.weakAreas : [],
+        skillScores: Array.isArray(analysisPayload.skillScores) ? analysisPayload.skillScores : [],
+        ...(analysisPayload.recommendationRoadmap ? { recommendationRoadmap: analysisPayload.recommendationRoadmap } : {}),
+      };
 
       setExamState((prev) => ({
         ...prev,
@@ -702,7 +755,7 @@ export default function App() {
       }));
 
       // Cache diagnostics reports locally
-      localStorage.setItem("apex_exam_educator_analysis", JSON.stringify(parsedAnalysis));
+      safeSetItem("apex_exam_educator_analysis", JSON.stringify(parsedAnalysis));
 
       // Append code for previous reports
       if (examState.examSetup) {
@@ -716,7 +769,7 @@ export default function App() {
         };
         setReports((prev) => {
           const updated = [reportItem, ...prev.filter(r => r.id !== reportItem.id)];
-          localStorage.setItem("apex_previous_reports", JSON.stringify(updated));
+          safeSetItem("apex_previous_reports", JSON.stringify(updated));
           return updated;
         });
       }
@@ -734,12 +787,12 @@ export default function App() {
   const handleRestartNewExam = () => {
     // Confirm first to avoid accidental loss
     if (confirm("Reset current assessment schedule? All local scores and cached progress will be permanently erased.")) {
-      localStorage.removeItem("apex_exam_setup");
-      localStorage.removeItem("apex_exam_responses");
-      localStorage.removeItem("apex_exam_overall_status");
-      localStorage.removeItem("apex_exam_current_paper_id");
-      localStorage.removeItem("apex_exam_break_state");
-      localStorage.removeItem("apex_exam_educator_analysis");
+      safeRemoveItem("apex_exam_setup");
+      safeRemoveItem("apex_exam_responses");
+      safeRemoveItem("apex_exam_overall_status");
+      safeRemoveItem("apex_exam_current_paper_id");
+      safeRemoveItem("apex_exam_break_state");
+      safeRemoveItem("apex_exam_educator_analysis");
 
       setExamState({
         examSetup: null,
@@ -764,12 +817,12 @@ export default function App() {
       : "Return to Home/Setup screen?";
       
     if (confirm(msg)) {
-      localStorage.removeItem("apex_exam_setup");
-      localStorage.removeItem("apex_exam_responses");
-      localStorage.removeItem("apex_exam_overall_status");
-      localStorage.removeItem("apex_exam_current_paper_id");
-      localStorage.removeItem("apex_exam_break_state");
-      localStorage.removeItem("apex_exam_educator_analysis");
+      safeRemoveItem("apex_exam_setup");
+      safeRemoveItem("apex_exam_responses");
+      safeRemoveItem("apex_exam_overall_status");
+      safeRemoveItem("apex_exam_current_paper_id");
+      safeRemoveItem("apex_exam_break_state");
+      safeRemoveItem("apex_exam_educator_analysis");
 
       setExamState({
         examSetup: null,
@@ -800,28 +853,28 @@ export default function App() {
       educatorLoading: false,
       educatorError: null
     });
-    localStorage.setItem("apex_exam_setup", JSON.stringify(report.examSetup));
-    localStorage.setItem("apex_exam_responses", JSON.stringify(report.paperResponses));
-    localStorage.setItem("apex_exam_overall_status", "completed");
-    localStorage.setItem("apex_exam_current_paper_id", "1");
-    localStorage.setItem("apex_exam_break_state", JSON.stringify({ status: "completed", timeRemainingSecs: 0 }));
-    localStorage.setItem("apex_exam_educator_analysis", JSON.stringify(report.educatorAnalysis));
+    safeSetItem("apex_exam_setup", JSON.stringify(report.examSetup));
+    safeSetItem("apex_exam_responses", JSON.stringify(report.paperResponses));
+    safeSetItem("apex_exam_overall_status", "completed");
+    safeSetItem("apex_exam_current_paper_id", "1");
+    safeSetItem("apex_exam_break_state", JSON.stringify({ status: "completed", timeRemainingSecs: 0 }));
+    safeSetItem("apex_exam_educator_analysis", JSON.stringify(report.educatorAnalysis));
   };
 
   const handleDeleteReport = (id: string) => {
     setReports((prev) => {
       const updated = prev.filter((r) => r.id !== id);
-      localStorage.setItem("apex_previous_reports", JSON.stringify(updated));
+      safeSetItem("apex_previous_reports", JSON.stringify(updated));
       return updated;
     });
 
     if (examState.examSetup?.id === id) {
-      localStorage.removeItem("apex_exam_setup");
-      localStorage.removeItem("apex_exam_responses");
-      localStorage.removeItem("apex_exam_overall_status");
-      localStorage.removeItem("apex_exam_current_paper_id");
-      localStorage.removeItem("apex_exam_break_state");
-      localStorage.removeItem("apex_exam_educator_analysis");
+      safeRemoveItem("apex_exam_setup");
+      safeRemoveItem("apex_exam_responses");
+      safeRemoveItem("apex_exam_overall_status");
+      safeRemoveItem("apex_exam_current_paper_id");
+      safeRemoveItem("apex_exam_break_state");
+      safeRemoveItem("apex_exam_educator_analysis");
 
       setExamState({
         examSetup: null,
@@ -841,7 +894,7 @@ export default function App() {
 
   const handleSelectKernel = (modelId: string) => {
     setActiveKernelId(modelId);
-    localStorage.setItem("apex_preferred_logic_kernel", modelId);
+    safeSetItem("apex_preferred_logic_kernel", modelId);
   };
 
 
@@ -857,6 +910,7 @@ export default function App() {
             onInstall={handleInstallClick}
             canInstall={!!deferredPrompt}
             selectedModelName={getActiveKernelFriendlyName()}
+            selectedModelId={activeKernelId}
             isKernelConfigured={getIsActiveKernelConfigured()}
             onOpenSettings={() => { playBeep(523.25, 90, "sine"); setIsSettingsOpen(true); }}
           />
@@ -870,6 +924,8 @@ export default function App() {
             paper={paper1}
             answers={examState.paperResponses[1].answers}
             timeRemainingSecs={examState.paperResponses[1].timeRemainingSecs}
+            isPaused={isPaused}
+            onPauseChange={setIsPaused}
             onSelectOption={handleSelectOption}
             onToggleFlag={handleToggleFlag}
             onUpdateScratchpad={handleUpdateScratchpad}
@@ -883,6 +939,7 @@ export default function App() {
         return (
           <BreakActiveScreen
             durationMins={examState.examSetup.breakDurationMins}
+            timeRemainingSecs={examState.breakState.timeRemainingSecs}
             onSkipBreak={handleSkipBreak}
           />
         );
@@ -895,6 +952,8 @@ export default function App() {
             paper={paper2}
             answers={examState.paperResponses[2].answers}
             timeRemainingSecs={examState.paperResponses[2].timeRemainingSecs}
+            isPaused={isPaused}
+            onPauseChange={setIsPaused}
             onSelectOption={handleSelectOption}
             onToggleFlag={handleToggleFlag}
             onUpdateScratchpad={handleUpdateScratchpad}
@@ -1008,6 +1067,7 @@ export default function App() {
             onInstall={handleInstallClick}
             canInstall={!!deferredPrompt}
             selectedModelName={getActiveKernelFriendlyName()}
+            selectedModelId={activeKernelId}
             isKernelConfigured={getIsActiveKernelConfigured()}
             onOpenSettings={() => { playBeep(523.25, 90, "sine"); setIsSettingsOpen(true); }}
           />

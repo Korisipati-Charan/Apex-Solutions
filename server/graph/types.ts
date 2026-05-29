@@ -13,6 +13,7 @@ export interface GraphState {
   developerProfiles: Record<string, string[]>;
   questionsGenerated: Record<number, Record<string, unknown>[]>;
   errors: string[];
+  generationWarnings: string[];
 }
 
 export type NodeFunction = (state: GraphState) => Promise<Partial<GraphState>>;

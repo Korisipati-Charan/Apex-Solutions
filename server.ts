@@ -5,7 +5,7 @@ import { startServer } from "./server/start.ts";
 
 dotenv.config();
 
-setCacheDirectory(getRuntimeDirectory());
+setCacheDirectory(process.env.APEX_RUNTIME_DIR || getRuntimeDirectory());
 initCache();
 
 void startServer();

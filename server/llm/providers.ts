@@ -17,19 +17,59 @@ JSON SCHEMA:
 ${JSON.stringify(responseSchema)}`;
 }
 
-async function postJson<T>(url: string, headers: Record<string, string>, payload: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
+const DEFAULT_LLM_TIMEOUT_MS = 120_000;
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  label: string,
+  timeoutMs = Number(process.env.APEX_LLM_TIMEOUT_MS) || DEFAULT_LLM_TIMEOUT_MS
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(
+      () => reject(new Error(`Request timed out after ${timeoutMs}ms while calling ${label}.`)),
+      timeoutMs
+    );
   });
 
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`${res.status} ${res.statusText} - ${errorText}`);
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
+}
 
-  return res.json() as Promise<T>;
+async function postJson<T>(
+  url: string,
+  headers: Record<string, string>,
+  payload: unknown,
+  timeoutMs = Number(process.env.APEX_LLM_TIMEOUT_MS) || DEFAULT_LLM_TIMEOUT_MS
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`${res.status} ${res.statusText} - ${errorText}`);
+    }
+
+    return res.json() as Promise<T>;
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`Request timed out after ${timeoutMs}ms while calling ${url}.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function callGeminiProvider(
@@ -47,7 +87,7 @@ export async function callGeminiProvider(
   });
 
   const params: Record<string, unknown> = {
-    model: modelName === "gemini-3.5-pro" ? "gemini-3.5-pro" : "gemini-3.5-flash",
+    model: modelName,
     input: userPrompt,
     system_instruction: systemInstruction,
   };
@@ -60,8 +100,9 @@ export async function callGeminiProvider(
     };
   }
 
-  const interaction = (await client.interactions.create(
-    params as unknown as Parameters<typeof client.interactions.create>[0]
+  const interaction = (await withTimeout(
+    client.interactions.create(params as unknown as Parameters<typeof client.interactions.create>[0]),
+    `Google Gemini ${modelName}`
   )) as { steps?: { type?: string; content?: { text?: string }[] }[] };
   const modelOutputStep = interaction.steps?.find((step) => step.type === "model_output");
   const text = modelOutputStep?.content?.[0]?.text;
@@ -80,7 +121,6 @@ export async function callOpenAIProvider(
   responseSchema: unknown | undefined,
   apiKey: string
 ): Promise<unknown> {
-  const openaiModelId = modelName === "openai-gpt-4o" ? "gpt-4o" : "gpt-4o-mini";
   let systemContent = systemInstruction;
 
   if (responseSchema) {
@@ -88,7 +128,7 @@ export async function callOpenAIProvider(
   }
 
   const payload: Record<string, unknown> = {
-    model: openaiModelId,
+    model: modelName,
     messages: [
       { role: "system", content: systemContent },
       { role: "user", content: userPrompt },
@@ -109,7 +149,7 @@ export async function callOpenAIProvider(
 
   const text = data.choices?.[0]?.message?.content;
   if (!text) throw new Error("Empty response returned from OpenAI completions.");
-  return parseJSONCleanly(text, openaiModelId);
+  return parseJSONCleanly(text, modelName);
 }
 
 export async function callAnthropicProvider(
@@ -119,9 +159,6 @@ export async function callAnthropicProvider(
   responseSchema: unknown | undefined,
   apiKey: string
 ): Promise<unknown> {
-  const claudeModelId =
-    modelName === "claude-3-5-sonnet" ? "claude-3-5-sonnet-20241022" : "claude-3-5-haiku-20241022";
-
   const fullPrompt = responseSchema ? appendSchemaToPrompt(userPrompt, responseSchema) : userPrompt;
 
   const data = await postJson<{ content?: { text?: string }[] }>(
@@ -132,7 +169,7 @@ export async function callAnthropicProvider(
       "anthropic-version": "2023-06-01",
     },
     {
-      model: claudeModelId,
+      model: modelName,
       system: systemInstruction,
       messages: [{ role: "user", content: fullPrompt }],
       max_tokens: 4000,
@@ -142,10 +179,11 @@ export async function callAnthropicProvider(
 
   const text = data.content?.[0]?.text;
   if (!text) throw new Error("Empty response returned from Anthropic completions.");
-  return parseJSONCleanly(text, claudeModelId);
+  return parseJSONCleanly(text, modelName);
 }
 
 export async function callSarvamProvider(
+  modelName: string,
   systemInstruction: string,
   userPrompt: string,
   responseSchema: unknown | undefined,
@@ -160,7 +198,7 @@ export async function callSarvamProvider(
       "api-subscription-key": apiKey,
     },
     {
-      model: "sarvam-2b-instruct",
+      model: modelName,
       messages: [
         { role: "system", content: systemInstruction },
         { role: "user", content: sarvamPrompt },
@@ -171,7 +209,7 @@ export async function callSarvamProvider(
 
   const text = data.choices?.[0]?.message?.content;
   if (!text) throw new Error("Empty response returned from Sarvam AI completions.");
-  return parseJSONCleanly(text, "sarvam-2b-instruct");
+  return parseJSONCleanly(text, modelName);
 }
 
 export async function callOpenAICompatibleProvider(

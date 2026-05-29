@@ -34,6 +34,9 @@ export async function callWithRetry<T>(
       if (attempt >= retries) throw err;
 
       const message = err instanceof Error ? err.message : String(err);
+      if (/401|403|404|not[_ ]found|model .*not found|invalid model|api key|unauthorized|forbidden/i.test(message)) {
+        throw err;
+      }
       const isRateLimited = /429|rate.?limit/i.test(message);
       const jitter = Math.random() * 200;
       const backoffDelay =

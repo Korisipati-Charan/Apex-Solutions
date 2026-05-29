@@ -15,6 +15,7 @@ export async function segmentSyllabusNode(state: GraphState) {
 }
 
 export async function isolateSkillsNode(state: GraphState) {
+  const generationWarnings = [...state.generationWarnings];
   const setupSystemPrompt =
     "You are a professional assessment syllabus extractor. Identify the key technical skills mentioned in the syllabus and assign a professional name to each paper.";
   const setupUserPrompt = `
@@ -64,6 +65,7 @@ Extract:
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.warn("[LangGraph] IsolateSkills fallback:", message);
+    generationWarnings.push(`Skill isolation used fallback extraction: ${message}`);
     extractedSetup = {
       skills: [
         "Full-Stack Software Engineering",
@@ -78,17 +80,26 @@ Extract:
     };
   }
 
-  const papers = (extractedSetup.papers || []).map((paper, index) => {
-    const record = paper as Record<string, unknown>;
+  const rawPapers = Array.isArray(extractedSetup.papers) ? extractedSetup.papers : [];
+  const papers = Array.from({ length: state.numPapers }, (_, index) => {
+    const paper = rawPapers[index];
+    const record = paper && typeof paper === "object" ? (paper as Record<string, unknown>) : {};
     return {
-      id: typeof record.id === "number" ? record.id : index + 1,
+      id: index + 1,
       name: String(record.name || `Paper ${index + 1}: Technical Assessment`),
     };
   });
 
+  if (rawPapers.length < state.numPapers) {
+    generationWarnings.push(
+      `Model returned ${rawPapers.length} paper title(s); padded to requested ${state.numPapers}.`
+    );
+  }
+
   return {
     skills: extractedSetup.skills || [],
     papers,
+    generationWarnings,
   };
 }
 
@@ -173,12 +184,13 @@ function buildFallbackQuestions(
 
 export async function synthesizeQuestionsNode(state: GraphState) {
   const chunksCount = Math.ceil(state.numQuestions / QUESTION_CHUNK_SIZE);
-  const paperTasks: (() => Promise<{ paperId: number; questions: Record<string, unknown>[] }>)[] = [];
+  const paperTasks: (() => Promise<{ paperId: number; questions: Record<string, unknown>[]; warning?: string }>)[] = [];
   const questionsGenerated: Record<number, Record<string, unknown>[]> = {};
+  const papersById = new Map(state.papers.map((paper) => [paper.id, paper]));
 
-  for (const paper of state.papers) {
-    const paperId = paper.id as number;
-    const paperName = paper.name as string;
+  for (let paperId = 1; paperId <= state.numPapers; paperId++) {
+    const paper = papersById.get(paperId);
+    const paperName = paper?.name || `Paper ${paperId}: Technical Assessment`;
 
     for (let chunkIndex = 0; chunkIndex < chunksCount; chunkIndex++) {
       const questionsToGenerate =
@@ -258,6 +270,7 @@ Each question must have exactly 4 options (A–D), one correct letter, a detaile
           console.error(`[LangGraph] Chunk synthesis failed Paper ${paperId}:`, message);
           return {
             paperId,
+            warning: `Paper ${paperId} chunk ${chunkIndex + 1} used fallback questions: ${message}`,
             questions: buildFallbackQuestions(
               questionsToGenerate,
               chunkIndex * QUESTION_CHUNK_SIZE + 1,
@@ -279,28 +292,42 @@ Each question must have exactly 4 options (A–D), one correct letter, a detaile
     questionsGenerated[chunk.paperId].push(...chunk.questions);
   }
 
-  return { questionsGenerated };
+  const generationWarnings = [
+    ...state.generationWarnings,
+    ...resolved.map((chunk) => chunk.warning).filter((warning): warning is string => Boolean(warning)),
+  ];
+
+  return { questionsGenerated, generationWarnings };
 }
 
 export async function validateAndCorrectNode(state: GraphState) {
   const fallbackSkill = state.skills[0] || "Software Engineering";
+  const generationWarnings = [...state.generationWarnings];
+  const papersById = new Map(state.papers.map((paper) => [paper.id, paper]));
 
-  const finalPapers = state.papers.map((p, paperIndex) => {
-    const paperId = (typeof p.id === "number" ? p.id : paperIndex + 1) as number;
+  const finalPapers = Array.from({ length: state.numPapers }, (_, paperIndex) => {
+    const paperId = paperIndex + 1;
+    const p = papersById.get(paperId);
     const rawQuestions = state.questionsGenerated[paperId] || [];
+    if (rawQuestions.length < state.numQuestions) {
+      generationWarnings.push(
+        `Paper ${paperId} produced ${rawQuestions.length}/${state.numQuestions} questions; guarded fallback questions filled the gap.`
+      );
+    }
 
     return normalizePaper(
       {
         id: paperId,
-        name: String(p.name),
+        name: String(p?.name || `Paper ${paperId}: Technical Assessment`),
         questions: rawQuestions,
       },
       paperIndex,
       state.numQuestions,
       state.paperDurationMins,
-      fallbackSkill
+      fallbackSkill,
+      generationWarnings
     );
   });
 
-  return { papers: finalPapers };
+  return { papers: finalPapers, generationWarnings };
 }
