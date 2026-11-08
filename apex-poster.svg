@@ -1,0 +1,149 @@
+<svg width="1600" height="2000" viewBox="0 0 1600 2000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="180" y1="100" x2="1420" y2="1900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#07111F"/>
+      <stop offset="0.48" stop-color="#0E1D32"/>
+      <stop offset="1" stop-color="#0B1527"/>
+    </linearGradient>
+    <linearGradient id="tealGrad" x1="310" y1="300" x2="1340" y2="1060" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5EE7D9"/>
+      <stop offset="0.5" stop-color="#7CB8FF"/>
+      <stop offset="1" stop-color="#8F7CFF"/>
+    </linearGradient>
+    <linearGradient id="panelGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#132642" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#0D1B2B" stop-opacity="0.95"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="2000" fill="url(#bg)"/>
+
+  <circle cx="1280" cy="260" r="390" fill="#7AA9FF" fill-opacity="0.08"/>
+  <circle cx="250" cy="1810" r="420" fill="#64E7D6" fill-opacity="0.08"/>
+
+  <g opacity="0.18">
+    <path d="M120 316H1480" stroke="#A5B8D9"/>
+    <path d="M120 470H1480" stroke="#A5B8D9"/>
+    <path d="M120 624H1480" stroke="#A5B8D9"/>
+    <path d="M120 778H1480" stroke="#A5B8D9"/>
+    <path d="M120 932H1480" stroke="#A5B8D9"/>
+    <path d="M120 1086H1480" stroke="#A5B8D9"/>
+    <path d="M120 1240H1480" stroke="#A5B8D9"/>
+    <path d="M120 1394H1480" stroke="#A5B8D9"/>
+    <path d="M120 1548H1480" stroke="#A5B8D9"/>
+    <path d="M120 1702H1480" stroke="#A5B8D9"/>
+  </g>
+
+  <g filter="url(#glow)">
+    <rect x="110" y="110" width="250" height="62" rx="31" fill="#EAF2FF" fill-opacity="0.08"/>
+    <text x="160" y="151" fill="#D9EDFF" font-size="28" font-family="Verdana, Arial, sans-serif" font-weight="700" letter-spacing="4">APEX</text>
+  </g>
+
+  <text x="110" y="255" fill="#DFF2FF" font-size="34" font-family="Verdana, Arial, sans-serif" font-weight="600" letter-spacing="8">LEARNING THROUGH TESTING</text>
+
+  <g>
+    <text x="110" y="420" fill="#F2FBFF" font-size="145" font-family="Verdana, Arial, sans-serif" font-weight="800" letter-spacing="-5">APEX</text>
+    <text x="110" y="540" fill="#8FD5FF" font-size="120" font-family="Verdana, Arial, sans-serif" font-weight="700" letter-spacing="-4">SOLUTIONS</text>
+  </g>
+
+  <rect x="110" y="610" width="830" height="10" rx="5" fill="url(#tealGrad)"/>
+
+  <text x="110" y="700" fill="#DDEBFF" font-size="52" font-family="Verdana, Arial, sans-serif" font-weight="600">Secure. Offline. Assessment Ready.</text>
+  <text x="110" y="780" fill="#A9C3E7" font-size="30" font-family="Verdana, Arial, sans-serif">A standalone desktop application for creating, persisting, and conducting</text>
+  <text x="110" y="825" fill="#A9C3E7" font-size="30" font-family="Verdana, Arial, sans-serif">technical developer assessments in a secure, offline-first environment.</text>
+
+  <g>
+    <rect x="110" y="930" width="635" height="520" rx="30" fill="url(#panelGrad)" stroke="#7EC7FF" stroke-opacity="0.35"/>
+
+    <text x="150" y="990" fill="#F3F8FF" font-size="36" font-family="Verdana, Arial, sans-serif" font-weight="700">CORE FEATURES</text>
+    <rect x="150" y="1030" width="18" height="18" rx="5" fill="#61E8D5"/>
+    <text x="182" y="1048" fill="#DDEBFF" font-size="28" font-family="Verdana, Arial, sans-serif">Custom assessment builder from PDFs, Word docs, and plain text</text>
+
+    <rect x="150" y="1098" width="18" height="18" rx="5" fill="#61E8D5"/>
+    <text x="182" y="1116" fill="#DDEBFF" font-size="28" font-family="Verdana, Arial, sans-serif">Offline persistence with local progress saving and recovery</text>
+
+    <rect x="150" y="1166" width="18" height="18" rx="5" fill="#61E8D5"/>
+    <text x="182" y="1184" fill="#DDEBFF" font-size="28" font-family="Verdana, Arial, sans-serif">Markdown export for exam papers, question sheets, and answer keys</text>
+
+    <rect x="150" y="1234" width="18" height="18" rx="5" fill="#61E8D5"/>
+    <text x="182" y="1252" fill="#DDEBFF" font-size="28" font-family="Verdana, Arial, sans-serif">Performance scorecards and detailed competency insights</text>
+
+    <rect x="150" y="1310" width="500" height="100" rx="20" fill="#0C1B2B" fill-opacity="0.9" stroke="#5EE7D9" stroke-opacity="0.4"/>
+    <text x="180" y="1360" fill="#7FD8FF" font-size="26" font-family="Verdana, Arial, sans-serif" font-weight="700">96%</text>
+    <rect x="260" y="1338" width="325" height="18" rx="9" fill="#233C5E"/>
+    <rect x="260" y="1338" width="290" height="18" rx="9" fill="url(#tealGrad)"/>
+    <text x="180" y="1388" fill="#DDEBFF" font-size="22" font-family="Verdana, Arial, sans-serif">Assessment readiness score</text>
+  </g>
+
+  <g>
+    <rect x="820" y="930" width="670" height="520" rx="30" fill="#091827" stroke="#7EC7FF" stroke-opacity="0.4"/>
+    <text x="860" y="990" fill="#F3F8FF" font-size="36" font-family="Verdana, Arial, sans-serif" font-weight="700">WHY TEAMS USE IT</text>
+
+    <g transform="translate(860 1035)">
+      <rect width="230" height="120" rx="18" fill="#10243B"/>
+      <text x="22" y="45" fill="#7FE7D8" font-size="22" font-family="Verdana, Arial, sans-serif" font-weight="700">TRAINERS</text>
+      <text x="22" y="76" fill="#DDEBFF" font-size="22" font-family="Verdana, Arial, sans-serif">Build custom</text>
+      <text x="22" y="105" fill="#DDEBFF" font-size="22" font-family="Verdana, Arial, sans-serif">evaluations</text>
+    </g>
+
+    <g transform="translate(1115 1035)">
+      <rect width="230" height="120" rx="18" fill="#10243B"/>
+      <text x="22" y="45" fill="#85B7FF" font-size="22" font-family="Verdana, Arial, sans-serif" font-weight="700">HIRING</text>
+      <text x="22" y="76" fill="#DDEBFF" font-size="22" font-family="Verdana, Arial, sans-serif">Assess skills</text>
+      <text x="22" y="105" fill="#DDEBFF" font-size="22" font-family="Verdana, Arial, sans-serif">with confidence</text>
+    </g>
+
+    <g transform="translate(860 1185)">
+      <rect width="230" height="120" rx="18" fill="#10243B"/>
+      <text x="22" y="45" fill="#8CF0D7" font-size="22" font-family="Verdana, Arial, sans-serif" font-weight="700">LEARNING</text>
+      <text x="22" y="76" fill="#DDEBFF" font-size="22" font-family="Verdana, Arial, sans-serif">Track growth</text>
+      <text x="22" y="105" fill="#DDEBFF" font-size="22" font-family="Verdana, Arial, sans-serif">and progress</text>
+    </g>
+
+    <g transform="translate(1115 1185)">
+      <rect width="230" height="120" rx="18" fill="#10243B"/>
+      <text x="22" y="45" fill="#B4A0FF" font-size="22" font-family="Verdana, Arial, sans-serif" font-weight="700">SECURE</text>
+      <text x="22" y="76" fill="#DDEBFF" font-size="22" font-family="Verdana, Arial, sans-serif">Offline-first</text>
+      <text x="22" y="105" fill="#DDEBFF" font-size="22" font-family="Verdana, Arial, sans-serif">environment</text>
+    </g>
+  </g>
+
+  <g>
+    <rect x="110" y="1515" width="1380" height="310" rx="32" fill="url(#panelGrad)" stroke="#7EC7FF" stroke-opacity="0.35"/>
+    <text x="150" y="1585" fill="#F3F8FF" font-size="36" font-family="Verdana, Arial, sans-serif" font-weight="700">DESIGNED FOR MODERN TECHNICAL ASSESSMENTS</text>
+
+    <g transform="translate(150 1628)">
+      <rect width="400" height="120" rx="18" fill="#091827" stroke="#4FD7D0" stroke-opacity="0.5"/>
+      <text x="28" y="52" fill="#F3F8FF" font-size="24" font-family="Verdana, Arial, sans-serif" font-weight="700">TypeScript</text>
+      <text x="28" y="82" fill="#A7C4E9" font-size="20" font-family="Verdana, Arial, sans-serif">Desktop application</text>
+    </g>
+
+    <g transform="translate(600 1628)">
+      <rect width="400" height="120" rx="18" fill="#091827" stroke="#7AA9FF" stroke-opacity="0.5"/>
+      <text x="28" y="52" fill="#F3F8FF" font-size="24" font-family="Verdana, Arial, sans-serif" font-weight="700">Offline-first</text>
+      <text x="28" y="82" fill="#A7C4E9" font-size="20" font-family="Verdana, Arial, sans-serif">Local persistence</text>
+    </g>
+
+    <g transform="translate(1050 1628)">
+      <rect width="400" height="120" rx="18" fill="#091827" stroke="#B39BFF" stroke-opacity="0.5"/>
+      <text x="28" y="52" fill="#F3F8FF" font-size="24" font-family="Verdana, Arial, sans-serif" font-weight="700">Export ready</text>
+      <text x="28" y="82" fill="#A7C4E9" font-size="20" font-family="Verdana, Arial, sans-serif">Markdown reports</text>
+    </g>
+  </g>
+
+  <g>
+    <text x="110" y="1878" fill="#E4F4FF" font-size="46" font-family="Verdana, Arial, sans-serif" font-weight="700">Available for Windows and macOS</text>
+    <text x="110" y="1932" fill="#9FBDD9" font-size="26" font-family="Verdana, Arial, sans-serif">Apex Solutions • Learning through Testing</text>
+
+    <rect x="110" y="1960" width="150" height="18" rx="9" fill="#61E8D5"/>
+    <rect x="285" y="1960" width="150" height="18" rx="9" fill="#7AA9FF"/>
+    <rect x="460" y="1960" width="150" height="18" rx="9" fill="#B39BFF"/>
+  </g>
+</svg>
